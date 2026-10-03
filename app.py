@@ -19,12 +19,13 @@ TEXT_SUFFIXES = {
 }
 
 st.set_page_config(
-    page_title="SOL API Chat",
+    page_title="GPT-SOL - AI Model Chat V1.0",
     page_icon="◈",
     layout="wide",
 )
 
-st.title("◈ AI Model Chat")
+st.image("assets/gpt_sol_logo.svg", width=72)
+st.title("GPT-SOL - AI Model Chat V1.0")
 st.caption("OpenAI · Anthropic Claude · xAI Grok · API-Keys nur zur Laufzeit")
 
 if "messages" not in st.session_state:
