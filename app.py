@@ -4,7 +4,6 @@ from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
-from openai import OpenAI
 from providers import PROVIDERS, call_model, extract_output_text, extract_usage, response_model
 
 
@@ -41,8 +40,9 @@ with st.sidebar:
     st.subheader("Provider")
     provider = st.selectbox("Anbieter", options=list(PROVIDERS.keys()), index=0)
     provider_models = PROVIDERS[provider]
+    default_model_index = list(provider_models.keys()).index("GPT-5.6 Sol") if provider == "OpenAI" else 0
 
-    model_label = st.selectbox("Modell", options=list(provider_models.keys()), index=0)
+    model_label = st.selectbox("Modell", options=list(provider_models.keys()), index=default_model_index)
     model_config = provider_models[model_label]
     model_id = model_config["id"]
 
@@ -184,7 +184,7 @@ prompt = st.text_area(
     ),
 )
 
-send = st.button("An SOL senden", type="primary", use_container_width=True)
+send = st.button("An Modell senden", type="primary", use_container_width=True)
 
 if send:
     selected_api_key = {
