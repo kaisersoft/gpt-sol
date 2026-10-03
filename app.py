@@ -24,9 +24,12 @@ st.set_page_config(
     layout="wide",
 )
 
-st.image("assets/gpt_sol_logo.svg", width=72)
-st.title("GPT-SOL - AI Model Chat V1.0")
-st.caption("OpenAI · Anthropic Claude · xAI Grok · API-Keys nur zur Laufzeit")
+logo_col, title_col = st.columns([1, 4], vertical_alignment="center")
+with logo_col:
+    st.image("assets/gpt_sol_logo.svg", width=120)
+with title_col:
+    st.markdown("## GPT-SOL - AI Model Chat V1.0")
+    st.caption("OpenAI · Anthropic Claude · xAI Grok · API-Keys nur zur Laufzeit")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
