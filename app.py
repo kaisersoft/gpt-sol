@@ -212,12 +212,20 @@ if send:
         # Re-send the existing chat context so follow-up questions remain a chat.
         api_input = []
         for msg in st.session_state.messages:
-            api_input.append(
-                {
-                    "role": msg["role"],
-                    "content": [{"type": "input_text", "text": msg["raw"]}],
-                }
-            )
+            if msg["role"] == "assistant":
+                api_input.append(
+                    {
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": msg["raw"]}],
+                    }
+                )
+            else:
+                api_input.append(
+                    {
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": msg["raw"]}],
+                    }
+                )
         api_input.extend(current_input)
 
         client = OpenAI(api_key=api_key.strip())
