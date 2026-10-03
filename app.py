@@ -28,11 +28,11 @@ logo_col, title_col = st.columns([1, 4], vertical_alignment="center")
 with logo_col:
     st.image("assets/gpt_sol_logo.svg", width=120)
 with title_col:
-    st.markdown("## GPT-SOL - AI Model Chat V1.0")
+    st.markdown("## ☀️ GPT-SOL - AI Model Chat V1.0")
     st.markdown(
         "*We make Models, that are good at coding and good at AI research.*"
     )
-    st.caption("OpenAI · Anthropic Claude · xAI Grok · API-Keys nur zur Laufzeit")
+    st.caption("OpenAI · Anthropic Claude · xAI Grok · API-Keys nur zur Laufzeit - Powered by Kaisersoft.AI")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
