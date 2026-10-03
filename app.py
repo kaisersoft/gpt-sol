@@ -26,7 +26,7 @@ st.set_page_config(
 
 logo_col, title_col = st.columns([1, 4], vertical_alignment="center")
 with logo_col:
-    st.image("assets/gpt_sol_logo.svg", width=120)
+    st.image("assets/gpt_sol_logo.gif", width=120)
 with title_col:
     st.markdown("## ☀️ GPT-SOL - AI Model Chat V1.0")
     st.markdown(
