@@ -6,11 +6,50 @@ from pathlib import Path
 import streamlit as st
 from openai import OpenAI
 
-MODEL = "gpt-5.6-sol"
-
-# Current standard short-context prices for GPT-5.6 Sol.
-INPUT_PRICE_PER_1M = 4.00
-OUTPUT_PRICE_PER_1M = 20.00
+MODELS = {
+    "GPT-6 Astra": {
+        "id": "gpt-6-astra",
+        "input_per_1m": 5.00,
+        "output_per_1m": 25.00,
+        "reasoning": ["low", "medium", "high", "xhigh", "max"],
+        "description": "Höchste Qualität für anspruchsvollstes Reasoning und Coding.",
+    },
+    "GPT-6.1 Sol": {
+        "id": "gpt-6.1-sol",
+        "input_per_1m": 2.00,
+        "output_per_1m": 10.00,
+        "reasoning": ["low", "medium", "high", "xhigh", "max"],
+        "description": "Near-Astra-Leistung für komplexe Arbeit bei geringeren Kosten.",
+    },
+    "GPT-6 Luna": {
+        "id": "gpt-6-luna",
+        "input_per_1m": 0.10,
+        "output_per_1m": 0.50,
+        "reasoning": ["none", "low", "medium", "high", "xhigh", "max"],
+        "description": "Kostengünstig und schnell für fokussierte Aufgaben.",
+    },
+    "GPT-5.6 Sol": {
+        "id": "gpt-5.6-sol",
+        "input_per_1m": 2.00,
+        "output_per_1m": 10.00,
+        "reasoning": ["none", "low", "medium", "high", "xhigh", "max"],
+        "description": "Flaggschiff der GPT-5.6-Familie für komplexe professionelle Arbeit.",
+    },
+    "GPT-5.6 Terra": {
+        "id": "gpt-5.6-terra",
+        "input_per_1m": 1.00,
+        "output_per_1m": 6.00,
+        "reasoning": ["none", "low", "medium", "high", "xhigh", "max"],
+        "description": "Ausgewogener Mix aus Intelligenz und Kosten.",
+    },
+    "GPT-5.6 Luna": {
+        "id": "gpt-5.6-luna",
+        "input_per_1m": 0.10,
+        "output_per_1m": 0.60,
+        "reasoning": ["none", "low", "medium", "high", "xhigh", "max"],
+        "description": "Für kostenbewusste, schnelle und volumenreiche Aufgaben.",
+    },
+}
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_TOTAL_FILE_BYTES = 15 * 1024 * 1024
@@ -50,6 +89,27 @@ with st.sidebar:
         help="Der Key wird von der App nicht auf Festplatte gespeichert.",
     )
 
+    model_label = st.selectbox(
+        "Modell",
+        options=list(MODELS.keys()),
+        index=list(MODELS.keys()).index("GPT-5.6 Sol"),
+    )
+    model_config = MODELS[model_label]
+    model_id = model_config["id"]
+
+    reasoning_effort = st.selectbox(
+        "Reasoning",
+        options=model_config["reasoning"],
+        index=model_config["reasoning"].index("medium"),
+        help="Nur die für das ausgewählte Modell unterstützten Stufen werden angeboten.",
+    )
+
+    st.caption(model_config["description"])
+    st.caption(
+        f"`{model_id}` · ${model_config['input_per_1m']:.2f}/1M Input · "
+        f"${model_config['output_per_1m']:.2f}/1M Output"
+    )
+
     budget = st.number_input(
         "Restbudget / Session-Budget (USD)",
         min_value=0.0,
@@ -84,8 +144,8 @@ with st.sidebar:
         st.rerun()
 
     st.caption(
-        f"Kostenbasis: ${INPUT_PRICE_PER_1M:.2f}/1M Input · "
-        f"${OUTPUT_PRICE_PER_1M:.2f}/1M Output"
+        f"Kostenbasis aktuell: ${model_config['input_per_1m']:.2f}/1M Input · "
+        f"${model_config['output_per_1m']:.2f}/1M Output"
     )
 
 
@@ -160,10 +220,10 @@ def build_request(user_text: str, uploaded_files) -> tuple[list, list[str]]:
     return [{"role": "user", "content": content}], display_files
 
 
-def estimate_cost(input_tokens: int, output_tokens: int) -> float:
+def estimate_cost(input_tokens: int, output_tokens: int, model_config: dict) -> float:
     return (
-        input_tokens * INPUT_PRICE_PER_1M / 1_000_000
-        + output_tokens * OUTPUT_PRICE_PER_1M / 1_000_000
+        input_tokens * model_config["input_per_1m"] / 1_000_000
+        + output_tokens * model_config["output_per_1m"] / 1_000_000
     )
 
 
@@ -232,9 +292,9 @@ if send:
 
         with st.spinner("SOL arbeitet …"):
             response = client.responses.create(
-                model=MODEL,
+                model=model_id,
                 input=api_input,
-                reasoning={"effort": "medium"},
+                reasoning={"effort": reasoning_effort},
             )
 
         output_text = response.output_text or "(Keine Textausgabe.)"
@@ -242,7 +302,7 @@ if send:
 
         input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
         output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
-        cost = estimate_cost(input_tokens, output_tokens)
+        cost = estimate_cost(input_tokens, output_tokens, model_config)
 
         st.session_state.spent_usd += cost
         st.session_state.last_usage = {
@@ -302,8 +362,9 @@ st.subheader("Export")
 
 if st.session_state.messages:
     transcript_parts = [
-        "# SOL API Chat Export",
-        f"Model: {MODEL}",
+        "# OpenAI API Chat Export",
+        f"Model: {model_id}",
+        f"Reasoning: {reasoning_effort}",
         f"Export: {datetime.now().isoformat(timespec='seconds')}",
         "",
     ]
