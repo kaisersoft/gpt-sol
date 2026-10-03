@@ -5,51 +5,8 @@ from pathlib import Path
 
 import streamlit as st
 from openai import OpenAI
+from providers import PROVIDERS, call_model, extract_output_text, extract_usage, response_model
 
-MODELS = {
-    "GPT-6 Astra": {
-        "id": "gpt-6-astra",
-        "input_per_1m": 10.00,
-        "output_per_1m": 50.00,
-        "reasoning": ["low", "medium", "high", "xhigh", "max"],
-        "description": "Höchste Qualität für anspruchsvollstes Reasoning und Coding.",
-    },
-    "GPT-6.1 Sol": {
-        "id": "gpt-6.1-sol",
-        "input_per_1m": 2.00,
-        "output_per_1m": 10.00,
-        "reasoning": ["low", "medium", "high", "xhigh", "max"],
-        "description": "Near-Astra-Leistung für komplexe Arbeit bei geringeren Kosten.",
-    },
-    "GPT-6 Luna": {
-        "id": "gpt-6-luna",
-        "input_per_1m": 0.10,
-        "output_per_1m": 0.50,
-        "reasoning": ["none", "low", "medium", "high", "xhigh", "max"],
-        "description": "Kostengünstig und schnell für fokussierte Aufgaben.",
-    },
-    "GPT-5.6 Sol": {
-        "id": "gpt-5.6-sol",
-        "input_per_1m": 4.00,
-        "output_per_1m": 20.00,
-        "reasoning": ["none", "low", "medium", "high", "xhigh", "max"],
-        "description": "Flaggschiff der GPT-5.6-Familie für komplexe professionelle Arbeit.",
-    },
-    "GPT-5.6 Terra": {
-        "id": "gpt-5.6-terra",
-        "input_per_1m": 2.00,
-        "output_per_1m": 12.00,
-        "reasoning": ["none", "low", "medium", "high", "xhigh", "max"],
-        "description": "Ausgewogener Mix aus Intelligenz und Kosten.",
-    },
-    "GPT-5.6 Luna": {
-        "id": "gpt-5.6-luna",
-        "input_per_1m": 0.20,
-        "output_per_1m": 1.20,
-        "reasoning": ["none", "low", "medium", "high", "xhigh", "max"],
-        "description": "Für kostenbewusste, schnelle und volumenreiche Aufgaben.",
-    },
-}
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_TOTAL_FILE_BYTES = 15 * 1024 * 1024
@@ -68,8 +25,8 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("◈ OpenAI API Chat")
-st.caption("OpenAI API · GPT-5.6 Sol · API-Key nur zur Laufzeit")
+st.title("◈ AI Model Chat")
+st.caption("OpenAI · Anthropic Claude · xAI Grok · API-Keys nur zur Laufzeit")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -81,59 +38,35 @@ if "last_response" not in st.session_state:
     st.session_state.last_response = ""
 
 with st.sidebar:
-    st.subheader("API")
-    api_key = st.text_input(
-        "OpenAI API Key",
-        type="password",
-        placeholder="sk-…",
-        help="Der Key wird von der App nicht auf Festplatte gespeichert.",
-    )
+    st.subheader("Provider")
+    provider = st.selectbox("Anbieter", options=list(PROVIDERS.keys()), index=0)
+    provider_models = PROVIDERS[provider]
 
-    model_label = st.selectbox(
-        "Modell",
-        options=list(MODELS.keys()),
-        index=list(MODELS.keys()).index("GPT-5.6 Sol"),
-    )
-    model_config = MODELS[model_label]
+    model_label = st.selectbox("Modell", options=list(provider_models.keys()), index=0)
+    model_config = provider_models[model_label]
     model_id = model_config["id"]
 
-    reasoning_effort = st.selectbox(
-        "Reasoning",
-        options=model_config["reasoning"],
-        index=model_config["reasoning"].index("medium"),
-        help="Nur die für das ausgewählte Modell unterstützten Stufen werden angeboten.",
-    )
+    openai_api_key = st.text_input("OpenAI API Key", type="password", placeholder="sk-…", help="Optional – nur nötig für OpenAI.")
+    claude_api_key = st.text_input("Anthropic API Key", type="password", placeholder="sk-ant-…", help="Optional – nur nötig für Anthropic.")
+    xai_api_key = st.text_input("xAI API Key", type="password", placeholder="xai-…", help="Optional – nur nötig für xAI.")
+
+    reasoning_effort = None
+    if provider == "OpenAI":
+        reasoning_effort = st.selectbox("Reasoning", options=model_config["reasoning"], index=model_config["reasoning"].index("medium"))
 
     st.caption(model_config["description"])
-    st.caption(
-        f"`{model_id}` · ${model_config['input_per_1m']:.2f}/1M Input · "
-        f"${model_config['output_per_1m']:.2f}/1M Output"
-    )
+    st.caption(f"`{model_id}` · ${model_config['input_per_1m']:.2f}/1M Input · ${model_config['output_per_1m']:.2f}/1M Output")
 
-    budget = st.number_input(
-        "Restbudget / Session-Budget (USD)",
-        min_value=0.0,
-        value=5.00,
-        step=1.00,
-        format="%.2f",
-        help="Manueller Budgetwert. Das echte API-Guthaben des Kontos wird hier nicht automatisch abgefragt.",
-    )
+    budget = st.number_input("Restbudget / Session-Budget (USD)", min_value=0.0, value=5.00, step=1.00, format="%.2f", help="Manueller Budgetwert; das echte Provider-Guthaben wird nicht automatisch abgefragt.")
 
     st.divider()
     st.subheader("Kosten")
     st.metric("Session-Verbrauch", f"${st.session_state.spent_usd:.4f}")
-    st.metric(
-        "Verbleibendes Budget",
-        f"${max(0.0, budget - st.session_state.spent_usd):.4f}",
-    )
+    st.metric("Verbleibendes Budget", f"${max(0.0, budget - st.session_state.spent_usd):.4f}")
 
     if st.session_state.last_usage:
         usage = st.session_state.last_usage
-        st.caption(
-            f"Letzte Anfrage: {usage['input_tokens']:,} Input · "
-            f"{usage['output_tokens']:,} Output · "
-            f"~${usage['cost']:.4f}"
-        )
+        st.caption(f"Letzte Anfrage: {usage['input_tokens']:,} Input · {usage['output_tokens']:,} Output · ~${usage['cost']:.4f}")
 
     st.divider()
     if st.button("Chat leeren", use_container_width=True):
@@ -143,11 +76,7 @@ with st.sidebar:
         st.session_state.last_response = ""
         st.rerun()
 
-    st.caption(
-        f"Kostenbasis aktuell: ${model_config['input_per_1m']:.2f}/1M Input · "
-        f"${model_config['output_per_1m']:.2f}/1M Output"
-    )
-
+    st.caption(f"Kostenbasis aktuell: ${model_config['input_per_1m']:.2f}/1M Input · ${model_config['output_per_1m']:.2f}/1M Output")
 
 def extract_file_text(uploaded_file) -> str:
     raw = uploaded_file.getvalue()
@@ -258,8 +187,14 @@ prompt = st.text_area(
 send = st.button("An SOL senden", type="primary", use_container_width=True)
 
 if send:
-    if not api_key.strip():
-        st.error("Bitte zuerst den OpenAI API Key eingeben.")
+    selected_api_key = {
+        "OpenAI": openai_api_key,
+        "Anthropic Claude": claude_api_key,
+        "xAI Grok": xai_api_key,
+    }[provider]
+
+    if not selected_api_key.strip():
+        st.error(f"Bitte zuerst den {provider}-API-Key eingeben.")
         st.stop()
 
     if st.session_state.spent_usd >= budget:
@@ -267,57 +202,7 @@ if send:
         st.stop()
 
     try:
-        current_input, display_files = build_request(prompt, uploaded_files)
-
-        # Re-send the existing chat context so follow-up questions remain a chat.
-        api_input = []
-        for msg in st.session_state.messages:
-            if msg["role"] == "assistant":
-                api_input.append(
-                    {
-                        "role": "assistant",
-                        "content": [{"type": "output_text", "text": msg["raw"]}],
-                    }
-                )
-            else:
-                api_input.append(
-                    {
-                        "role": "user",
-                        "content": [{"type": "input_text", "text": msg["raw"]}],
-                    }
-                )
-        api_input.extend(current_input)
-
-        client = OpenAI(api_key=api_key.strip())
-
-        with st.spinner("SOL arbeitet …"):
-            response = client.responses.create(
-                model=model_id,
-                input=api_input,
-                reasoning={"effort": reasoning_effort},
-            )
-
-        output_text = response.output_text or "(Keine Textausgabe.)"
-        usage = response.usage
-
-        input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
-        output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
-        cost = estimate_cost(input_tokens, output_tokens, model_config)
-
-        st.session_state.spent_usd += cost
-        st.session_state.last_usage = {
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "cost": cost,
-        }
-
-        user_display = prompt.strip() or "(Dateianhang ohne Text)"
-        if display_files:
-            user_display += "\n\n**Dateien:** " + ", ".join(
-                f"`{name}`" for name in display_files
-            )
-
-        # Store the exact current request text for conversational follow-ups.
+        _, display_files = build_request(prompt, uploaded_files)
         raw_parts = []
         if prompt.strip():
             raw_parts.append(prompt.strip())
@@ -327,50 +212,52 @@ if send:
                 f"{extract_file_text(uploaded_file)}"
                 f"\n--- ENDE DATEI: {uploaded_file.name} ---"
             )
-        raw_request = "\n".join(raw_parts)
+        current_prompt = "\n".join(raw_parts)
 
-        st.session_state.messages.append(
-            {
-                "role": "user",
-                "display": user_display,
-                "raw": raw_request,
-            }
+        response = call_model(
+            provider=provider,
+            model_id=model_id,
+            api_key=selected_api_key.strip(),
+            history=st.session_state.messages,
+            prompt=current_prompt,
+            reasoning_effort=reasoning_effort,
         )
-        st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "display": output_text,
-                "raw": output_text,
-            }
-        )
+
+        output_text = extract_output_text(provider, response)
+        input_tokens, output_tokens = extract_usage(response)
+        cost = estimate_cost(input_tokens, output_tokens, model_config)
+
+        st.session_state.spent_usd += cost
+        st.session_state.last_usage = {"input_tokens": input_tokens, "output_tokens": output_tokens, "cost": cost}
+
+        user_display = prompt.strip() or "(Dateianhang ohne Text)"
+        if display_files:
+            user_display += "\n\n**Dateien:** " + ", ".join(f"`{name}`" for name in display_files)
+
+        st.session_state.messages.append({"role": "user", "display": user_display, "raw": current_prompt})
+        st.session_state.messages.append({"role": "assistant", "display": output_text, "raw": output_text})
         st.session_state.last_response = output_text
 
-        # Show the successful response immediately in the current GUI run.
         st.chat_message("assistant").markdown(output_text)
-
-        # The API response is the authoritative source for the actual model ID.
-        model_returned = getattr(response, "model", None)
-        if model_returned:
-            st.caption(f"API-Modell: \`{model_returned}\`")
+        st.caption(f"{provider} · API-Modell: `{response_model(response, model_id)}`")
 
     except Exception as exc:
         st.error(f"API-Fehler: {exc}")
-
 
 st.divider()
 st.subheader("Export")
 
 if st.session_state.messages:
     transcript_parts = [
-        "# OpenAI API Chat Export",
+        "# AI Model Chat Export",
+        f"Provider: {provider}",
         f"Model: {model_id}",
-        f"Reasoning: {reasoning_effort}",
+        f"Reasoning: {reasoning_effort or 'default'}",
         f"Export: {datetime.now().isoformat(timespec='seconds')}",
         "",
     ]
-
     for msg in st.session_state.messages:
-        role = "USER" if msg["role"] == "user" else "SOL"
+        role = "USER" if msg["role"] == "user" else "ASSISTANT"
         transcript_parts.append(f"## {role}\n\n{msg['display']}\n")
 
     transcript = "\n".join(transcript_parts)
