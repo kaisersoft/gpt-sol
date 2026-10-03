@@ -29,7 +29,7 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("◈ SOL API Chat")
+st.title("◈ OpenAI API Chat")
 st.caption("OpenAI API · GPT-5.6 Sol · API-Key nur zur Laufzeit")
 
 if "messages" not in st.session_state:
