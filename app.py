@@ -277,7 +277,13 @@ if send:
         )
         st.session_state.last_response = output_text
 
-        st.rerun()
+        # Show the successful response immediately in the current GUI run.
+        st.chat_message("assistant").markdown(output_text)
+
+        # The API response is the authoritative source for the actual model ID.
+        model_returned = getattr(response, "model", None)
+        if model_returned:
+            st.caption(f"API-Modell: \`{model_returned}\`")
 
     except Exception as exc:
         st.error(f"API-Fehler: {exc}")
